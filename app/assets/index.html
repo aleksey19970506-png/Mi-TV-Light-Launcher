@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TV Shell</title>
+<style>
+  :root{
+    --pad:56px;
+    --dock-bg:rgba(255,255,255,.16);
+    --tile-bg:rgba(255,255,255,.10);
+    --tile-bg-on:rgba(255,255,255,.24);
+    --text:#fff;
+    --muted:rgba(255,255,255,.72);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;background:#000}
+  body{font-family:Roboto,"Segoe UI",Arial,sans-serif;color:var(--text);overflow:hidden;user-select:none;cursor:none}
+  #wall1,#wall2{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;
+    background-repeat:no-repeat;background-color:#0b1220;transition:opacity 1.6s ease-in-out;opacity:0}
+  #wall1{opacity:1}
+  #shade{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,.45) 0%,rgba(0,0,0,.05) 26%,rgba(0,0,0,.05) 55%,rgba(0,0,0,.72) 100%)}
+
+  header{position:fixed;top:0;left:0;right:0;z-index:2;display:flex;align-items:center;
+    justify-content:space-between;padding:30px var(--pad) 0}
+  #clock{font-size:64px;font-weight:500;line-height:1;letter-spacing:.02em;
+    text-shadow:0 2px 16px rgba(0,0,0,.55)}
+  nav{display:flex;align-items:center;gap:10px}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:14px;
+    font-size:19px;color:var(--muted);border:2px solid transparent;
+    transition:background-color .12s,color .12s,border-color .12s}
+  .nav-item svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+  .nav-item.focused{color:#fff;background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.9)}
+
+  footer{position:fixed;left:0;right:0;bottom:42px;z-index:2;display:flex;justify-content:center;padding:0 var(--pad)}
+  .dock{padding:9px 14px;border-radius:26px;
+    background:linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.10) 100%);
+    border:1px solid rgba(255,255,255,.30);
+    box-shadow:0 22px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.38);
+    -webkit-backdrop-filter:blur(18px) saturate(160%);
+    backdrop-filter:blur(18px) saturate(160%);
+    max-width:100%;overflow:hidden}
+  .track{display:flex;gap:8px;transition:transform .18s ease-out;will-change:transform}
+
+  .tile{flex:0 0 auto;width:126px;height:112px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:7px;border-radius:18px;
+    border:2px solid transparent;background:transparent;
+    transition:background-color .12s,border-color .12s,transform .12s}
+  .tile .icon{width:62px;height:62px;border-radius:16px;display:flex;align-items:center;
+    justify-content:center;background:var(--tile-bg);font-size:34px;overflow:hidden}
+  .tile .icon img{width:62px;height:62px;object-fit:contain;display:block}
+  .tile .name{font-size:15px;color:var(--muted);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.focused{background:rgba(255,255,255,.34);border-color:rgba(255,255,255,.95);transform:scale(1.04);
+    box-shadow:0 10px 26px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.5)}
+  .tile.focused .name{color:#fff}
+
+  .overlay{position:fixed;inset:0;z-index:4;background:rgba(8,10,14,.92);backdrop-filter:blur(6px);
+    display:none;flex-direction:column;padding:28px var(--pad) 36px}
+  .overlay.open{display:flex}
+  .overlay h2{margin:0 0 18px;font-size:24px;font-weight:400;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted)}
+
+  #gridList{display:grid;grid-template-columns:repeat(5,1fr);gap:10px 14px;
+    align-content:start;overflow-y:auto;padding-right:8px}
+  #gridList .tile{width:auto;height:100px}
+  #gridList .icon{width:58px;height:58px}
+  #gridList .icon img{width:58px;height:58px}
+  #gridList .name{font-size:14px}
+
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;
+    min-width:520px;padding:26px 30px;border-radius:24px;background:rgba(18,22,30,.97);
+    border:1px solid rgba(255,255,255,.16);display:none;flex-direction:column;gap:16px}
+  .modal.open{display:flex}
+  .modal p{margin:0 0 6px;font-size:20px;line-height:1.3;color:rgba(255,255,255,.75)}
+  .modal .opt{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:14px;
+    font-size:21px;color:var(--text);background:rgba(255,255,255,.07);border:2px solid transparent}
+  .modal .opt.focused{background:rgba(255,255,255,.22);border-color:#fff}
+  .modal .opt.danger{color:#ff8f7a}
+  .modal .opt .arr{width:26px;height:26px;flex:0 0 auto;opacity:.8}
+
+  #moveHint{position:fixed;left:50%;bottom:230px;transform:translateX(-50%);z-index:8;
+    padding:12px 22px;border-radius:12px;background:rgba(10,12,16,.9);border:1px solid rgba(255,255,255,.18);
+    font-size:19px;color:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
+  #moveHint.show{opacity:1}
+
+  body.overlay-mode header,body.overlay-mode footer{opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+  <div id="wall1"></div>
+  <div id="wall2"></div>
+  <div id="shade"></div>
+
+  <header>
+    <div id="clock">--:--</div>
+    <nav>
+      <div class="nav-item" data-act="allapps" tabindex="0" title="Все приложения">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Все приложения
+      </div>
+      <div class="nav-item" data-act="inputs" tabindex="0" title="Входы">
+        <svg viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="3.5"/><path d="M6.5 12h8"/><path d="M11.5 8.8L14.7 12l-3.2 3.2"/></svg>
+      </div>
+      <div class="nav-item" data-act="googletv" tabindex="0" title="Google TV">
+        <svg viewBox="0 0 24 24"><path d="M15 10l4.6-2.3A1 1 0 0121 8.6v6.8a1 1 0 01-1.4.9L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        Google TV
+      </div>
+      <div class="nav-item" data-act="settings" tabindex="0" title="Настройки">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-2.9 1.2V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-2.9-1.2l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00-1.2-2.9H3a2 2 0 110-4h.09a1.7 1.7 0 001.2-2.9l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 002.9-1.2V3a2 2 0 114 0v.09a1.7 1.7 0 002.9 1.2l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 001.2 2.9H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51.98z"/></svg>
+      </div>
+    </nav>
+  </header>
+
+  <footer>
+    <div class="dock" id="dock"><div class="track" id="track"></div></div>
+  </footer>
+
+  <div class="overlay" id="grid">
+    <h2>Все приложения</h2>
+    <div id="gridList"></div>
+  </div>
+
+  <div id="moveHint">Стрелки ← → — переместить · OK — готово</div>
+
+  <div class="modal" id="modal">
+    <p id="modalText"></p>
+    <div id="modalOpts"></div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- обои: плавная смена каждые 20 секунд ---------- */
+  var WALLS = ['bg1.jpg','bg2.jpg','bg3.jpg','bg4.jpg','bg5.jpg','bg7.jpg','bg8.jpg','bg9.jpg','bg10.jpg','bg12.jpg','bg13.jpg'];
+  (function walls() {
+    var a = document.getElementById('wall1');
+    var b = document.getElementById('wall2');
+    var i = 0;
+    function preload(n) { var im = new Image(); im.src = WALLS[n % WALLS.length]; }
+    a.style.backgroundImage = 'url(' + WALLS[0] + ')';
+    preload(1);
+    var front = a, back = b;
+    setInterval(function () {
+      i = (i + 1) % WALLS.length;
+      back.style.backgroundImage = 'url(' + WALLS[i] + ')';
+      back.style.opacity = '1';
+      front.style.opacity = '0';
+      var t = front; front = back; back = t;
+      preload(i + 1);
+    }, 20000);
+  })();
+
+  function pad(n){ return n < 10 ? '0' + n : '' + n; }
+  function tick(){
+    var d = new Date();
+    document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  tick();
+  setInterval(tick, 10000);
+
+  var PRIORITY = [
+    'com.google.android.youtube.tv','ru.more.play','com.vk.tv','ru.rutube.app',
+    'ru.astroapps.hdrezka','tv.twitch.android.app','mobi.zona','org.courville.nova',
+    'com.mediatek.wwtv.tvcenter','com.android.vending',
+    'com.xiaomi.mitv.mediaexplorer','com.xiaomi.mitv.smartshare'
+  ];
+  var HIDDEN_PKGS = ['ru.tvshell.launcher','com.spocky.projengmenu'];
+
+  var APPS = [];
+  var order = [];      // ручной порядок главного экрана
+  var hidden = [];     // убранные с главного экрана
+
+  function store(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+  function load(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : fallback;
+    } catch (e) { return fallback; }
+  }
+
+  function bridge1(method) {
+    try { if (window.Android && window.Android[method]) { window.Android[method](); return true; } } catch (e) {}
+    return false;
+  }
+  function bridgeArg(method, arg) {
+    try { if (window.Android && window.Android[method]) { window.Android[method](arg); return true; } } catch (e) {}
+    return false;
+  }
+
+  function loadApps() {
+    var raw = null;
+    try { if (window.Android && window.Android.getApps) raw = window.Android.getApps(); } catch (e) {}
+    if (raw) { try { APPS = JSON.parse(raw) || []; } catch (e) { APPS = []; } }
+    if (!APPS.length) {
+      APPS = [
+        { pkg:'com.google.android.youtube.tv', label:'YouTube' },
+        { pkg:'com.mediatek.wwtv.tvcenter', label:'Live TV' },
+        { pkg:'com.android.vending', label:'Play Store' }
+      ];
+    }
+    APPS = APPS.filter(function (a) { return HIDDEN_PKGS.indexOf(a.pkg) === -1; });
+
+    order = load('shell_order', []);
+    hidden = load('shell_hidden', []);
+
+    // убрать из порядка то, чего больше нет
+    var known = {};
+    APPS.forEach(function (a) { known[a.pkg] = true; });
+    order = order.filter(function (p) { return known[p]; });
+  }
+
+  function appByPkg(pkg) {
+    for (var i = 0; i < APPS.length; i++) if (APPS[i].pkg === pkg) return APPS[i];
+    return null;
+  }
+
+  function homeApps() {
+    var inOrder = order.slice();
+    var rest = APPS.filter(function (a) { return inOrder.indexOf(a.pkg) === -1; });
+    function rank(p){ var i = PRIORITY.indexOf(p); return i < 0 ? 999 : i; }
+    rest.sort(function (a,b) {
+      var d = rank(a.pkg) - rank(b.pkg);
+      return d !== 0 ? d : (a.label||'').localeCompare(b.label||'');
+    });
+    var all = inOrder.map(appByPkg).filter(Boolean).concat(rest);
+    return all.filter(function (a) { return hidden.indexOf(a.pkg) === -1; });
+  }
+
+  function makeTile(app) {
+    var t = document.createElement('div');
+    t.className = 'tile';
+    t.setAttribute('data-act', 'app:' + app.pkg);
+    t.setAttribute('tabindex', '0');
+    var icon = document.createElement('div');
+    icon.className = 'icon';
+    if (app.icon) {
+      var img = document.createElement('img');
+      img.src = app.icon; img.alt = '';
+      icon.appendChild(img);
+    } else icon.textContent = (app.label || '?').charAt(0).toUpperCase();
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = app.label || app.pkg;
+    t.appendChild(icon); t.appendChild(name);
+    return t;
+  }
+
+  function renderHome() {
+    var track = document.getElementById('track');
+    track.innerHTML = '';
+    homeApps().forEach(function (a) { track.appendChild(makeTile(a)); });
+    trackShift = 0; track.style.transform = 'translateX(0px)';
+  }
+
+  function renderGrid() {
+    var list = document.getElementById('gridList');
+    list.innerHTML = '';
+    APPS.slice().sort(function (a,b) { return (a.label||'').localeCompare(b.label||''); })
+        .forEach(function (a) { list.appendChild(makeTile(a)); });
+  }
+
+  /* ---------- фокус ---------- */
+  var items = [], cur = -1, mode = 'home';
+
+  function scope() {
+    if (mode === 'grid') return Array.prototype.slice.call(document.querySelectorAll('#gridList .tile'));
+    if (mode === 'modal') return Array.prototype.slice.call(document.querySelectorAll('#modal .opt'));
+    return Array.prototype.slice.call(document.querySelectorAll('header [data-act], #track .tile'));
+  }
+
+  function setFocus(i) {
+    if (i < 0 || i >= items.length) return;
+    items.forEach(function (el, n) { el.classList.toggle('focused', n === i); });
+    cur = i;
+    if (mode === 'home') keepVisible(items[i]);
+    else items[i].scrollIntoView({ block:'nearest', behavior:'smooth' });
+  }
+
+  function center(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  }
+
+  function move(dir) {
+    if (cur < 0) { setFocus(0); return; }
+    var from = center(items[cur]);
+    var best = -1, bestScore = Infinity;
+    for (var i = 0; i < items.length; i++) {
+      if (i === cur) continue;
+      var to = center(items[i]);
+      var dx = to.x - from.x, dy = to.y - from.y, primary, secondary;
+      if (dir === 'left')       { if (dx >= -1) continue; primary = -dx; secondary = Math.abs(dy); }
+      else if (dir === 'right') { if (dx <= 1)  continue; primary = dx;  secondary = Math.abs(dy); }
+      else if (dir === 'up')    { if (dy >= -1) continue; primary = -dy; secondary = Math.abs(dx); }
+      else                      { if (dy <= 1)  continue; primary = dy;  secondary = Math.abs(dx); }
+      var score = primary + secondary * 2.6;
+      if (score < bestScore) { bestScore = score; best = i; }
+    }
+    if (best >= 0) setFocus(best);
+  }
+
+  var trackShift = 0;
+  function keepVisible(el) {
+    var dock = document.getElementById('dock'), track = document.getElementById('track');
+    if (!dock || !track) return;
+    var r = el.getBoundingClientRect(), d = dock.getBoundingClientRect();
+    if (r.left < d.left + 10) trackShift += (d.left + 10 - r.left);
+    else if (r.right > d.right - 10) trackShift -= (r.right - d.right + 10);
+    if (trackShift > 0) trackShift = 0;
+    track.style.transform = 'translateX(' + trackShift + 'px)';
+  }
+
+  /* ---------- меню ---------- */
+  var modalOpts = [];
+  var modalReturn = 'home';
+
+  function openMenu(title, opts) {
+    modalReturn = mode === 'grid' ? 'grid' : 'home';
+    modalOpts = opts;
+    document.getElementById('modalText').textContent = title;
+    var box = document.getElementById('modalOpts');
+    box.innerHTML = '';
+    opts.forEach(function (o, i) {
+      var d = document.createElement('div');
+      d.className = 'opt' + (o.danger ? ' danger' : '');
+      d.setAttribute('data-act', 'opt:' + i);
+      d.setAttribute('tabindex', '0');
+      d.textContent = o.label;
+      box.appendChild(d);
+    });
+    document.getElementById('modal').classList.add('open');
+    mode = 'modal';
+    cur = 0; items = scope(); setFocus(0);
+  }
+
+  function closeMenu() {
+    document.getElementById('modal').classList.remove('open');
+    mode = modalReturn;
+    cur = 0; items = scope(); setFocus(0);
+    if (mode === 'home') {
+      // вернуть фокус на ту же плитку
+      var idx = items.findIndex(function (el) {
+        return el.getAttribute('data-act') === 'app:' + menuPkg;
+      });
+      if (idx >= 0) setFocus(idx);
+    }
+  }
+
+  var menuPkg = null;
+
+  function moveHome(pkg, delta) {
+    var list = homeApps().map(function (a) { return a.pkg; });
+    var i = list.indexOf(pkg);
+    if (i < 0) return;
+    var j = i + delta;
+    if (j < 0 || j >= list.length) return;
+    var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    order = list;
+    store('shell_order', order);
+    renderHome();
+    items = scope();
+    var idx = items.findIndex(function (el) { return el.getAttribute('data-act') === 'app:' + pkg; });
+    setFocus(idx >= 0 ? idx : 0);
+  }
+
+  function hideFromHome(pkg) {
+    if (hidden.indexOf(pkg) === -1) hidden.push(pkg);
+    store('shell_hidden', hidden);
+    renderHome();
+    items = scope();
+    setFocus(0);
+  }
+
+  function restoreToHome(pkg) {
+    hidden = hidden.filter(function (p) { return p !== pkg; });
+    store('shell_hidden', hidden);
+    renderHome();
+    items = scope();
+    var idx = items.findIndex(function (el) { return el.getAttribute('data-act') === 'app:' + pkg; });
+    setFocus(idx >= 0 ? idx : 0);
+  }
+
+  function appMenu(pkg) {
+    menuPkg = pkg;
+    var inGrid = (mode === 'grid');
+    var app = appByPkg(pkg) || { label: pkg };
+    var opts = [
+      { label: 'Открыть', act: function () { bridgeArg('startApp', pkg); } }
+    ];
+    if (hidden.indexOf(pkg) === -1) {
+      if (!inGrid) opts.push({ label: 'Переместить', act: function () { startMove(pkg); } });
+      opts.push({ label: 'Убрать с главного', act: function () { hideFromHome(pkg); } });
+    } else {
+      opts.push({ label: inGrid ? 'Добавить на главный экран' : 'Вернуть на главный', act: function () { restoreToHome(pkg); } });
+    }
+    opts.push({ label: 'Удалить приложение', danger: true, act: function () { bridgeArg('uninstall', pkg); } });
+    openMenu('«' + (app.label || pkg) + '»', opts);
+  }
+
+  function run(act) {
+    if (act === 'allapps')  { mode = 'grid'; document.body.classList.add('overlay-mode'); document.getElementById('grid').classList.add('open'); renderGrid(); cur = 0; items = scope(); setFocus(0); return; }
+    if (act === 'inputs')   { bridge1('showInputs'); return; }
+    if (act === 'settings') { bridge1('openSettings'); return; }
+    if (act === 'googletv') { bridge1('openGoogleTv'); return; }
+    if (act.indexOf('app:') === 0) { bridgeArg('startApp', act.slice(4)); return; }
+    if (act.indexOf('opt:') === 0) {
+      var o = modalOpts[parseInt(act.slice(4), 10)];
+      closeMenu();
+      if (o && o.act) o.act();
+      return;
+    }
+  }
+
+  function leaveOverlays() {
+    document.body.classList.remove('overlay-mode');
+    ['grid'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
+    var m = document.getElementById('modal');
+    if (m) m.classList.remove('open');
+    mode = 'home'; cur = 0; items = scope(); setFocus(0);
+  }
+
+  /* ---------- пульт ---------- */
+  var MAP = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
+              Left:'left', Right:'right', Up:'up', Down:'down' };
+  var OK = { Enter:1, ' ':1, Select:1 };
+  var BACK = { Backspace:1, Escape:1, GoBack:1, BrowserBack:1, XF86Back:1 };
+
+  var okDown = 0;
+  var suppressNextKeyUp = false;
+
+  var moving = null;
+
+  function startMove(pkg) {
+    moving = pkg;
+    document.getElementById('moveHint').classList.add('show');
+  }
+
+  function stopMove() {
+    moving = null;
+    document.getElementById('moveHint').classList.remove('show');
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (moving) {
+      if (e.key === 'ArrowLeft' || e.key === 'Left') { e.preventDefault(); moveHome(moving, -1); return; }
+      if (e.key === 'ArrowRight' || e.key === 'Right') { e.preventDefault(); moveHome(moving, 1); return; }
+      if (OK[e.key] || BACK[e.key]) { e.preventDefault(); stopMove(); return; }
+    }
+    if (MAP[e.key]) { e.preventDefault(); move(MAP[e.key]); return; }
+    if (OK[e.key]) { e.preventDefault(); if (!okDown) okDown = Date.now(); return; }
+    if (BACK[e.key]) {
+      e.preventDefault();
+      if (mode === 'modal') { closeMenu(); return; }
+      if (mode === 'grid') { leaveOverlays(); return; }
+      setFocus(0);
+      return;
+    }
+    if (e.key === 'ContextMenu' || e.key === 'F10') {
+      e.preventDefault();
+      var el = items[cur];
+      if (el && el.getAttribute('data-act').indexOf('app:') === 0) appMenu(el.getAttribute('data-act').slice(4));
+    }
+  }, true);
+
+  document.addEventListener('keyup', function (e) {
+    if (!OK[e.key] || !okDown) return;
+    var held = Date.now() - okDown;
+    okDown = 0;
+    e.preventDefault();
+    if (cur < 0) return;
+    var el = items[cur];
+    var act = el.getAttribute('data-act');
+    if (suppressNextKeyUp) {
+      suppressNextKeyUp = false;
+      return;
+    }
+    run(act);
+  }, true);
+
+  // вызовы из Activity
+  window.tvBack = function () {
+    if (mode === 'modal') { closeMenu(); return; }
+    if (mode === 'grid') { leaveOverlays(); return; }
+    setFocus(0);
+  };
+  window.tvMenuKey = function () {
+    suppressNextKeyUp = true;
+    if ((mode === 'home' || mode === 'grid') && cur >= 0) {
+      var el = items[cur];
+      var act = el ? el.getAttribute('data-act') : '';
+      if (act && act.indexOf('app:') === 0) { appMenu(act.slice(4)); return; }
+    }
+    if (mode === 'grid') leaveOverlays();
+    else {
+      mode = 'grid';
+      document.body.classList.add('overlay-mode');
+      document.getElementById('grid').classList.add('open');
+      renderGrid(); cur = 0; items = scope(); setFocus(0);
+    }
+  };
+  window.tvInputsClosed = function () {};
+  window.tvReload = function () {
+    loadApps();
+    renderHome();
+    if (mode === 'grid') renderGrid();
+    items = scope();
+    setFocus(cur < 0 ? 0 : Math.min(cur, items.length - 1));
+  };
+  window.tvHomeFocus = function () {
+    if (mode !== 'home') leaveOverlays();
+    setFocus(0);
+  };
+
+  loadApps();
+  renderHome();
+  items = scope();
+  setFocus(0);
+  window.addEventListener('resize', function () { setFocus(cur); });
+})();
+</script>
+</body>
+</html>
