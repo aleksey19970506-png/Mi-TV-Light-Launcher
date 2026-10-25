@@ -103,3 +103,8 @@ MIT — см. [LICENSE](LICENSE).
 ## Disclaimer
 
 All product names, logos, and brands are property of their respective owners. All company, product and service names used in this project are for identification purposes only. Use at your own risk.
+
+[![Download APK](https://img.shields.io/github/v/release/aleksey19970506-png/Mi-TV-Light-Launcher?color=brightgreen&label=Download%20APK)](https://github.com/aleksey19970506-png/Mi-TV-Light-Launcher/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![minSdk 21](https://img.shields.io/badge/minSdk-21-orange.svg)](https://developer.android.com/about/versions/lollipop)
+[![Size](https://img.shields.io/badge/APK-6.27%20MB-informational)](https://github.com/aleksey19970506-png/Mi-TV-Light-Launcher/releases/latest)
