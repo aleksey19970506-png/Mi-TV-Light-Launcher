@@ -1,0 +1,6 @@
+build/
+*.apk
+*.jks
+*.keystore
+*.zip
+.idea/
